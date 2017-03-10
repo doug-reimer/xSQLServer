@@ -15,6 +15,10 @@ Import-LocalizedData USLocalizedData -filename xSQLServer.strings.psd1 -UICultur
     .PARAMETER SetupCredential
         PSCredential object with the credentials to use to impersonate a user when connecting.
         If this is not provided then the current user will be used to connect to the SQL Server Database Engine instance.
+
+    .PARAMETER CredentialLoginType
+        String containing the SQL Server Login type to use when connecting.
+        If this is not provided, then the login wil use a Windows login type.
 #>
 function Connect-SQL
 {
@@ -31,7 +35,11 @@ function Connect-SQL
 
         [ValidateNotNull()]
         [System.Management.Automation.PSCredential]
-        $SetupCredential
+        $SetupCredential,
+        
+        [ValidateSet("Windows","SQL")]
+        [System.String]
+        $CredentialLoginType
     )
 
     $null = [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.Smo')
@@ -48,9 +56,19 @@ function Connect-SQL
     if ($SetupCredential)
     {
         $sql = New-Object Microsoft.SqlServer.Management.Smo.Server
-        $sql.ConnectionContext.ConnectAsUser = $true
-        $sql.ConnectionContext.ConnectAsUserPassword = $SetupCredential.GetNetworkCredential().Password
-        $sql.ConnectionContext.ConnectAsUserName = $SetupCredential.GetNetworkCredential().UserName
+
+        if ($CredentialLoginType -eq "SQL") {
+            $sql.ConnectionContext.LoginSecure = $false
+            $sql.ConnectionContext.Login = $SetupCredential.GetNetworkCredential().UserName
+            $sql.ConnectionContext.SecurePassword = $SetupCredential.Password
+        }
+        else {
+
+            $sql.ConnectionContext.ConnectAsUser = $true
+            $sql.ConnectionContext.ConnectAsUserPassword = $SetupCredential.GetNetworkCredential().Password
+            $sql.ConnectionContext.ConnectAsUserName = $SetupCredential.GetNetworkCredential().UserName
+        }
+
         $sql.ConnectionContext.ServerInstance = $connectSQL
         $sql.ConnectionContext.connect()
     }
